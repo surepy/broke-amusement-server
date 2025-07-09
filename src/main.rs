@@ -15,16 +15,23 @@ use crate::game::{GameInstance, SegaToolsInstance, SpiceGameInstance};
 mod card;
 
 fn create_game_instance(process_name: &str, entry: &PROCESSENTRY32W) -> Option<Box<dyn GameInstance>> {
-    let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
-    if handle.is_null() {
-        return None;
-    }
-    
     match process_name {
-        "spice.exe" | "spice64.exe" => Some(Box::new(SpiceGameInstance::new(handle))),
-         // I dont know if amdaemon doesnt run on other games
-         // I know that it runs on chunithm and ongeki /shrug
-        "amdaemon.exe" => Some(Box::new(SegaToolsInstance::new(handle))),
+        "spice.exe" | "spice64.exe" => {
+            let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
+            if handle.is_null() {
+                return None;
+            }
+            Some(Box::new(SpiceGameInstance::new(handle)))
+        }
+        // I dont know if amdaemon doesnt run on other games
+        // I know that it runs on chunithm and ongeki /shrug
+        "amdaemon.exe" => {
+            let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
+            if handle.is_null() {
+                return None;
+            }
+            Some(Box::new(SegaToolsInstance::new(handle)))
+        }
         _ => None,
     }
 }
@@ -36,8 +43,9 @@ fn find_game_instance() -> Box<dyn GameInstance> {
         unsafe {
             let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
-            // why it do that
+            // this realistically shouldn't happen, but just in case.
             if snapshot == winapi::um::handleapi::INVALID_HANDLE_VALUE {
+                eprintln!("Warn: 'snapshot == winapi::um::handleapi::INVALID_HANDLE_VALUE'!");
                 thread::sleep(Duration::from_millis(1000));
                 continue;
             }
@@ -89,9 +97,11 @@ fn main() {
 
     let handle = find_game_instance();
 
-    while handle.game_running() {
+    //while handle.game_running() {
         //
-    }
+    //}
+    //handle.login("");
+
 
     println!("Exiting as game exited.");
 }
