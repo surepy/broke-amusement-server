@@ -18,6 +18,7 @@ fn get_aimedb_accesscode(idm: &str) {
     let cache_file_path = Path::new(&cache_dir_string).with_file_name("brokeamu.cache.json");
     let mut cache_file= fs::File::create(cache_file_path).unwrap();
 
+    !todo!("Implement get_aimedb_accesscode")
 
     //cache_file.write(b"buf");
 }

@@ -32,7 +32,7 @@ fn is_process_running(handle: &HANDLE) -> bool {
 
 fn get_exe_directory(process_handle: HANDLE) -> Option<PathBuf> {
     // MAX_PATH: if you're using extended path length or LongPathsEnabled
-    // you can go fuck yourself hehe (wil fix one day)
+    // you can go fuck yourself hehe (wil fix????)
     let mut buffer = [0u16; MAX_PATH];
 
     unsafe {
@@ -147,6 +147,9 @@ impl GameInstance for SegaToolsInstance {
         //  see comments in get_008_accesscode
         //  for now this will do
         let access_code = get_008_accesscode(idm);
+        
+        // delete this?
+        println!("SegaToolsInstance: got Access Code {}", access_code);
 
         let write_op = fs::write(&self.card_file, access_code);
 
@@ -176,9 +179,9 @@ impl GameInstance for SegaToolsInstance {
             // card scan start
             SendInput(1, &mut input_down, std::mem::size_of::<INPUT>() as i32);
             
-            // hold enter for idk a good second
+            // hold enter for idk a good 1.5 seconds
             // TODO: find out how long does it actually take for a card scan.
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(1500));
 
             let mut input_up = INPUT {
                 type_: INPUT_KEYBOARD,

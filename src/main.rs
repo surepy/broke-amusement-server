@@ -1,4 +1,8 @@
 use std::ffi::CStr;
+use std::ffi::OsString;
+use std::io::Read;
+use std::net::TcpListener;
+use std::os::windows::ffi::OsStringExt;
 use std::thread;
 use std::time::Duration;
 use winapi::um::handleapi::CloseHandle;
@@ -7,14 +11,15 @@ use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
 use winapi::um::winnt::PROCESS_QUERY_INFORMATION;
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt;
 
 mod game;
 use crate::game::{GameInstance, SegaToolsInstance, SpiceGameInstance};
 mod card;
 
-fn create_game_instance(process_name: &str, entry: &PROCESSENTRY32W) -> Option<Box<dyn GameInstance>> {
+fn create_game_instance(
+    process_name: &str,
+    entry: &PROCESSENTRY32W,
+) -> Option<Box<dyn GameInstance>> {
     match process_name {
         "spice.exe" | "spice64.exe" => {
             let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
@@ -55,14 +60,21 @@ fn find_game_instance() -> Box<dyn GameInstance> {
 
             if Process32FirstW(snapshot, &mut entry) != 0 {
                 loop {
-                    let process_name_wide = &entry.szExeFile[..entry.szExeFile.iter()
-                        .position(|&c| c == 0).unwrap_or(entry.szExeFile.len())];
+                    let process_name_wide = &entry.szExeFile[..entry
+                        .szExeFile
+                        .iter()
+                        .position(|&c| c == 0)
+                        .unwrap_or(entry.szExeFile.len())];
                     let process_name = OsString::from_wide(process_name_wide)
                         .to_string_lossy()
                         .to_lowercase();
 
                     if let Some(instance) = create_game_instance(&process_name, &entry) {
                         CloseHandle(snapshot);
+                        println!(
+                            "Found Game Instance! | name = {} PID = {}",
+                            process_name, entry.th32ProcessID
+                        );
                         return instance;
                     }
 
@@ -79,12 +91,12 @@ fn find_game_instance() -> Box<dyn GameInstance> {
 }
 
 // TODO: delete me
-fn dumb_function_tests () {
-    let card_idm_str = "0100000000000";
+fn dumb_function_tests() {
+    let card_idm_str = "3500bd2ae3724e58";
     let card_idm = i64::from_str_radix(card_idm_str, 16).unwrap_or(0);
 
     let accesscode = card::get_008_accesscode(card_idm_str);
-    let card_id_hex = format!("{:X}", card_idm);
+    let card_id_hex = format!("{:016X}", card_idm);
 
     println!("0008 access code: {accesscode}");
     println!("hex: {card_id_hex}");
@@ -97,12 +109,70 @@ fn main() {
 
     let handle = find_game_instance();
 
-    //while handle.game_running() {
-        //
-    //}
-    //handle.login("");
+    // TODO: make this configurable?
+    // 1 13 21 = a m u
+    let listener = TcpListener::bind("0.0.0.0:11321").unwrap();
+    listener.set_nonblocking(true).unwrap();
 
+    while handle.game_running() {
+        // this *could* be multithreaded by simply copypasting
+        // the implementation from ch21.3 of the rust book
+        // but i'm lazy (job for later me) :)))
+        match listener.accept() {
+            Ok((stream, _)) => {
+                let mut stream = stream;
+                // i'll use protobuf or whatever if i need to expand
+                // this will work for now...
+
+                // length = 9 (always)
+                let mut buffer = [0u8; 17];
+
+                // our data is *always* 9 bytes, discard every other data (useless).
+                if stream.read(&mut buffer).unwrap_or(usize::MAX) != 9 {
+                    eprintln!("Discarding Possibly Malformed Data");
+                    continue;
+                }
+
+                // 1st byte (1 byte) - type (1 or 2)
+                let packet_type = *buffer.get(0).unwrap_or(&0);
+                // 2nd byte (8 bytes) - data
+                let data: [u8; 8] = buffer[1..9].try_into().unwrap();
+
+                match packet_type {
+                    // type 1 = card scan
+                    1 => {
+                        // we need to convert to a string because that's what spice wants
+                        // (is convenient for me also)
+                        // yes, later i do convert back to int but like whatever man
+                        let card_idm = format!("{:016X}", i64::from_be_bytes(data));
+
+                        let client_ip = stream.peer_addr().unwrap();
+                        println!("Card Data Recieved from {client_ip}");
+                        // TODO: delete this log probably.
+                        println!("Logging in with {card_idm}");
+
+                        handle.login(&card_idm);
+                    }
+                    // type 2 = key input
+                    2 => {
+                        !todo!("implement key input");
+                    }
+                    _ => {
+                        eprintln!("Incorrect Command");
+                        continue;
+                    }
+                }
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                // No incoming connections, sleep briefly and check game status
+                thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            Err(e) => {
+                eprintln!("Accept error: {}", e);
+            }
+        }
+    }
 
     println!("Exiting as game exited.");
 }
-
