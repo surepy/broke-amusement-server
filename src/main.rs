@@ -117,7 +117,7 @@ fn main() {
     while handle.game_running() {
         // this *could* be multithreaded by simply copypasting
         // the implementation from ch21.3 of the rust book
-        // but i'm lazy (job for later me) :)))
+        // but i'm lazy and realistically this code is not busy at all (job for later me) :)))
         match listener.accept() {
             Ok((stream, _)) => {
                 let mut stream = stream;
@@ -153,12 +153,16 @@ fn main() {
 
                         handle.login(&card_idm);
                     }
-                    // type 2 = key input
+                    // type 2 = coin input
                     2 => {
-                        !todo!("implement key input");
+                        !todo!("implement coin input");
+                    }
+                    // type 4 = keypad input
+                    4 => {
+                        !todo!("implement keypad input");
                     }
                     _ => {
-                        eprintln!("Incorrect Command");
+                        eprintln!("Incorrect Command, Discarding.");
                         continue;
                     }
                 }

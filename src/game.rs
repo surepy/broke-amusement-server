@@ -61,6 +61,9 @@ pub trait GameInstance {
 // spice
 pub struct SpiceGameInstance {
     game_handle: HANDLE,
+    card_file: PathBuf,
+    // unimplemented 
+    coin_key: i32
 }
 
 impl SpiceGameInstance {
@@ -91,6 +94,9 @@ impl GameInstance for SpiceGameInstance {
 pub struct SegaToolsInstance {
     game_handle: HANDLE,
     card_file: PathBuf,
+    // unimplemented 
+    coin_key: i32,
+    test_key: i32
 }
 
 impl SegaToolsInstance {
