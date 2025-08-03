@@ -125,7 +125,7 @@ impl From<u8> for PacketType {
 }
 
 fn main() {
-    dumb_function_tests();
+    // dumb_function_tests();
 
     println!("Waiting for game to launch...");
 

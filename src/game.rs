@@ -3,7 +3,7 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
-use std::thread;
+use std::{env, thread};
 use std::time::Duration;
 
 use winapi::shared::minwindef::MAX_PATH;
@@ -15,7 +15,7 @@ use winapi::um::winuser::{
     INPUT, INPUT_KEYBOARD, INPUT_u, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VK_RETURN,
 };
 
-use crate::card::get_008_accesscode;
+use crate::card::{get_008_accesscode, get_aimedb_accesscode};
 
 // checks if handle process is running, returns true if yes
 fn is_process_running(handle: &HANDLE) -> bool {
@@ -158,7 +158,6 @@ impl GameInstance for SpiceGameInstance {
 pub struct SegaToolsInstance {
     game_handle: HANDLE,
     card_file: PathBuf,
-    // unimplemented
     coin_key: i32,
     test_key: i32,
     service_key: i32,
@@ -201,6 +200,7 @@ impl SegaToolsInstance {
                 break;
             }
             // io3.test
+            // TODO: make configurable
             else if line.starts_with("test=") {
                 let d = line.split("=").last().unwrap();
             }
@@ -226,10 +226,15 @@ impl SegaToolsInstance {
 
 impl GameInstance for SegaToolsInstance {
     fn login(&self, idm: &str) {
-        // TODO: get real access code settin using get_aimedb_accesscode
-        //  see comments in get_008_accesscode
-        //  for now this will do
-        let access_code = get_008_accesscode(idm);
+        let mut access_code= get_008_accesscode(idm);
+        
+        // try to get the more canonically correct acccesscode, if requested.
+        // OPINION: i don't think you should use this
+        // because all the other card readers and data providers do it wrong anyway
+        let try_aimedb = env::var("BAS_SEGA_TRY_AIMEDB").is_ok();
+        if try_aimedb {
+            access_code = get_aimedb_accesscode(idm);
+        }
 
         // delete this?
         println!("SegaToolsInstance: got Access Code {}", access_code);

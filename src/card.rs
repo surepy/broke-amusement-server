@@ -1,26 +1,81 @@
 // this file largely exists to handle sega games, because
 // for spice i just plug in the idm to card0.txt
 
-use std::{env, fs, path::Path};
+use std::{collections::HashMap, env, fs, io::{Read, Write}, path::Path, str::FromStr};
+use serde_json;
 
-// i do not have access to aimedb (and probably never will), so...
-// we will send a web request to sega.bsnk.me -> permanently cache the result to 
-// ``LOCALAPPDATA\brokeamu.cache.json``
-// (so I won't bother the host too much if at all...)
-fn get_aimedb_accesscode(idm: &str) {
-    
-    // TODO: cache web requests impl
-    // directory used for caching sega.bsnk.me web requests
+/// 
+/// gets a more correct aimedb access code from card.bsnk.me
+/// permanently caches the results to ``LOCALAPPDATA\brokeamu.aimedb_cache.json``
+/// 
+pub fn get_aimedb_accesscode(idm: &str) -> String {
     let cache_dir_string = env::var("LOCALAPPDATA")
-        // this really shouldn't fail, but
         .unwrap_or(String::from("./"));
 
-    let cache_file_path = Path::new(&cache_dir_string).with_file_name("brokeamu.cache.json");
-    let mut cache_file= fs::File::create(cache_file_path).unwrap();
+    // save the access code so we bother the host less (this result doesn't change anyway)
+    let cache_file_path = Path::new(&cache_dir_string).join("brokeamu.aimedb_cache.json");
+    
+    // TODO probably don't load the entire cache file *every* function call
+    // but this will do for now; i mean how big this file can possibly be anyway 
+    let mut cache: HashMap<String, String> = if cache_file_path.exists() {
+        let mut file = fs::File::open(&cache_file_path).unwrap_or_else(|_| {
+            fs::File::create(&cache_file_path).unwrap()
+        });
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap_or(0);
+        serde_json::from_str(&contents).unwrap_or_else(|_| HashMap::new())
+    } else {
+        HashMap::new()
+    };
 
-    !todo!("Implement get_aimedb_accesscode")
+    // Check if we already have this IDM cached
+    if let Some(cached_accesscode) = cache.get(idm) {
+        println!("get_aimedb_accesscode: cache hit");
+        return cached_accesscode.clone();
+    }
 
-    //cache_file.write(b"buf");
+    println!("get_aimedb_accesscode: cache miss, calling card api.");
+    // https://sega.bsnk.me/misc/card_convert/
+    let url = format!("https://card.bsnk.me/normalise/sega:{}", idm);
+    let response = reqwest::blocking::get(&url);
+    
+    let accesscode = match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                // there must be a reason, but the response is always wrapped in quotes
+                // this is slightly annoying and makes this line ugly,
+                // but it is what it is.
+                let result_string = resp.text();
+                if result_string.is_ok() {
+                    result_string.unwrap()[1..21].to_string()
+                }
+                else {
+                    get_008_accesscode(idm)
+                }
+            } else {
+                get_008_accesscode(idm)
+            }
+        }
+        Err(err) => {
+            // we failed to even send the web request, so don't even
+            // bother caching this result and return early
+            eprintln!("get_aimedb_accesscode: request failure! ({err})");
+            return get_008_accesscode(idm);
+        }
+    };
+
+    println!("get_aimedb_accesscode: got accesscode {accesscode}");
+
+    // Cache the result
+    cache.insert(idm.to_string(), accesscode.clone());
+    
+    if let Ok(cache_json) = serde_json::to_string_pretty(&cache) {
+        if let Ok(mut file) = fs::File::create(&cache_file_path) {
+            let _ = file.write_all(cache_json.as_bytes());
+        }
+    }
+
+    accesscode
 }
 
 // returns a string representation of a 0008 access code from a given idm
