@@ -37,4 +37,3 @@ pub fn get_008_accesscode_i64(idm: i64) -> String {
 pub fn get_008_accesscode(card_idm_str: &str) -> String {
     return get_008_accesscode_i64(i64::from_str_radix(card_idm_str, 16).unwrap_or(0));
 }
-

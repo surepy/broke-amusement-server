@@ -1,3 +1,6 @@
+# slop machine generated test script
+# usage: .\testnet -Type 1 -IDM "ur idm"
+
 param(
       [string]$ServerIP = "localhost",
 

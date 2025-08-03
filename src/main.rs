@@ -102,6 +102,28 @@ fn dumb_function_tests() {
     println!("hex: {card_id_hex}");
 }
 
+enum PacketType {
+    None,   // bad data
+    CardScan,
+    CoinInput,
+    TestButton,
+    ServiceButton,
+    KeypadInput
+}
+
+impl From<u8> for PacketType {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => PacketType::CardScan,
+            2 => PacketType::CoinInput,
+            3 => PacketType::TestButton,
+            4 => PacketType::ServiceButton,
+            5 => PacketType::KeypadInput,
+            _ => PacketType::None, // default case
+        }
+    }
+}
+
 fn main() {
     dumb_function_tests();
 
@@ -121,26 +143,25 @@ fn main() {
         match listener.accept() {
             Ok((stream, _)) => {
                 let mut stream = stream;
-                // i'll use protobuf or whatever if i need to expand
+                // i'll use protobuf or whatever if i need to expand features
                 // this will work for now...
 
                 // length = 9 (always)
                 let mut buffer = [0u8; 17];
 
-                // our data is *always* 9 bytes, discard every other data (useless).
-                if stream.read(&mut buffer).unwrap_or(usize::MAX) != 9 {
-                    eprintln!("Discarding Possibly Malformed Data");
+                // our data *always should be* 9 bytes, discard every other data.
+                if stream.read(&mut buffer).unwrap_or(usize::MAX) != 17 {
+                    eprintln!("Discarding Possibly Malformed Data (length != 17)");
                     continue;
                 }
 
-                // 1st byte (1 byte) - type (1 or 2)
+                // 1st byte (1 byte) - PacketType
                 let packet_type = *buffer.get(0).unwrap_or(&0);
-                // 2nd byte (8 bytes) - data
+                // 2nd byte (8 bytes) - Data
                 let data: [u8; 8] = buffer[1..9].try_into().unwrap();
 
-                match packet_type {
-                    // type 1 = card scan
-                    1 => {
+                match PacketType::from(packet_type) {
+                    PacketType::CardScan => {
                         // we need to convert to a string because that's what spice wants
                         // (is convenient for me also)
                         // yes, later i do convert back to int but like whatever man
@@ -153,12 +174,16 @@ fn main() {
 
                         handle.login(&card_idm);
                     }
-                    // type 2 = coin input
-                    2 => {
-                        !todo!("implement coin input");
+                    PacketType::CoinInput => {
+                        handle.add_coin();
                     }
-                    // type 4 = keypad input
-                    4 => {
+                    PacketType::TestButton => {
+                        handle.test();
+                    }
+                    PacketType::ServiceButton => {
+                        handle.service();
+                    }
+                    PacketType::KeypadInput  => {
                         !todo!("implement keypad input");
                     }
                     _ => {
@@ -169,7 +194,7 @@ fn main() {
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 // No incoming connections, sleep briefly and check game status
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(Duration::from_millis(50));
                 continue;
             }
             Err(e) => {

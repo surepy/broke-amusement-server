@@ -11,7 +11,9 @@ use winapi::um::minwinbase::STILL_ACTIVE;
 use winapi::um::processthreadsapi::GetExitCodeProcess;
 use winapi::um::psapi::GetModuleFileNameExW;
 use winapi::um::winnt::HANDLE;
-use winapi::um::winuser::{INPUT_u, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_RETURN};
+use winapi::um::winuser::{
+    INPUT, INPUT_KEYBOARD, INPUT_u, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VK_RETURN,
+};
 
 use crate::card::get_008_accesscode;
 
@@ -53,8 +55,54 @@ fn get_exe_directory(process_handle: HANDLE) -> Option<PathBuf> {
     None
 }
 
+// SendInput wrapper
+fn keybd_input(key: i32) {
+    // this whole block looks really ugly, I blame microsoft.
+    unsafe {
+        let mut input_down = INPUT {
+            type_: INPUT_KEYBOARD,
+            u: {
+                let mut u = std::mem::zeroed::<INPUT_u>();
+                *u.ki_mut() = KEYBDINPUT {
+                    wVk: key as u16,
+                    wScan: 0,
+                    dwFlags: 0,
+                    time: 0,
+                    dwExtraInfo: 0,
+                };
+                u
+            },
+        };
+
+        SendInput(1, &mut input_down, std::mem::size_of::<INPUT>() as i32);
+
+        // gutentight value of sleep before lifting the key
+        thread::sleep(Duration::from_millis(1500));
+
+        let mut input_up = INPUT {
+            type_: INPUT_KEYBOARD,
+            u: {
+                let mut u = std::mem::zeroed::<INPUT_u>();
+                *u.ki_mut() = KEYBDINPUT {
+                    wVk: key as u16,
+                    wScan: 0,
+                    dwFlags: KEYEVENTF_KEYUP,
+                    time: 0,
+                    dwExtraInfo: 0,
+                };
+                u
+            },
+        };
+
+        SendInput(1, &mut input_up, std::mem::size_of::<INPUT>() as i32);
+    };
+}
+
 pub trait GameInstance {
     fn login(&self, idm: &str);
+    fn add_coin(&self);
+    fn test(&self);
+    fn service(&self);
     fn game_running(&self) -> bool;
 }
 
@@ -62,13 +110,17 @@ pub trait GameInstance {
 pub struct SpiceGameInstance {
     game_handle: HANDLE,
     card_file: PathBuf,
-    // unimplemented 
-    coin_key: i32
+    // unimplemented
+    coin_key: i32,
 }
 
 impl SpiceGameInstance {
     pub fn new(hnd: HANDLE) -> SpiceGameInstance {
-        SpiceGameInstance { game_handle: hnd }
+        SpiceGameInstance {
+            game_handle: hnd,
+            card_file: todo!(),
+            coin_key: todo!(),
+        }
     }
 }
 
@@ -89,14 +141,27 @@ impl GameInstance for SpiceGameInstance {
     fn game_running(&self) -> bool {
         is_process_running(&self.game_handle)
     }
+
+    fn add_coin(&self) {
+        todo!()
+    }
+
+    fn test(&self) {
+        todo!()
+    }
+
+    fn service(&self) {
+        todo!()
+    }
 }
 
 pub struct SegaToolsInstance {
     game_handle: HANDLE,
     card_file: PathBuf,
-    // unimplemented 
+    // unimplemented
     coin_key: i32,
-    test_key: i32
+    test_key: i32,
+    service_key: i32,
 }
 
 impl SegaToolsInstance {
@@ -111,10 +176,14 @@ impl SegaToolsInstance {
 
         let config_contents = fs::read_to_string(&directory).unwrap();
 
+        // defaults
+        let test_key = 0x70;
+        let service_key = 0x71;
+        let coin_key = 0x72;
+
         // find aimepath= to write our card data to.
         let mut card_file: Option<&Path> = None;
         for line in config_contents.lines() {
-
             if line.starts_with("aimePath=") {
                 directory.set_file_name(line.split("=").last().unwrap());
 
@@ -122,7 +191,8 @@ impl SegaToolsInstance {
                 let aime_path = directory.as_path();
 
                 // line is probably "aimePath=" (path null)
-                // and that's not my issue so just panic
+                // aka unconfigured.
+                // and that's not my issue so just panic and kill the program
                 if !aime_path.exists() {
                     panic!("error parsing '{line}'!");
                 }
@@ -130,9 +200,13 @@ impl SegaToolsInstance {
                 card_file = Some(aime_path);
                 break;
             }
+            // io3.test
+            else if line.starts_with("test=") {
+                let d = line.split("=").last().unwrap();
+            }
         }
 
-        // if aimePath isn't found at all we also crash.
+        // if aimePath isn't found at all we crash also.
         // but like if you don't have aimePath it's either
         // a. your config is wrong and we don't want to make assumptions
         // b. have a real card reader so it doesn't matter
@@ -143,6 +217,9 @@ impl SegaToolsInstance {
         SegaToolsInstance {
             game_handle: hnd,
             card_file: card_file.unwrap().to_path_buf(),
+            coin_key,
+            test_key,
+            service_key,
         }
     }
 }
@@ -153,7 +230,7 @@ impl GameInstance for SegaToolsInstance {
         //  see comments in get_008_accesscode
         //  for now this will do
         let access_code = get_008_accesscode(idm);
-        
+
         // delete this?
         println!("SegaToolsInstance: got Access Code {}", access_code);
 
@@ -164,52 +241,24 @@ impl GameInstance for SegaToolsInstance {
             return;
         }
 
-        // signal the game to read card data
-        // this whole block looks really ugly, I blame microsoft.
-        unsafe {
-            let mut input_down = INPUT {
-                type_: INPUT_KEYBOARD,
-                u: {
-                    let mut u = std::mem::zeroed::<INPUT_u>();
-                    *u.ki_mut() = KEYBDINPUT {
-                        wVk: VK_RETURN as u16,
-                        wScan: 0,
-                        dwFlags: 0,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    };
-                    u
-                },
-            };
-
-            // card scan start
-            SendInput(1, &mut input_down, std::mem::size_of::<INPUT>() as i32);
-            
-            // hold enter for idk a good 1.5 seconds
-            // TODO: find out how long does it actually take for a card scan.
-            thread::sleep(Duration::from_millis(1500));
-
-            let mut input_up = INPUT {
-                type_: INPUT_KEYBOARD,
-                u: {
-                    let mut u = std::mem::zeroed::<INPUT_u>();
-                    *u.ki_mut() = KEYBDINPUT {
-                        wVk: VK_RETURN as u16,
-                        wScan: 0, 
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    };
-                    u
-                },
-            };
-
-            // card scan end
-            SendInput(1, &mut input_up, std::mem::size_of::<INPUT>() as i32);
-        }
+        // the enter key is default and unconfigurable in segatools
+        // i think
+        keybd_input(VK_RETURN);
     }
 
     fn game_running(&self) -> bool {
         is_process_running(&self.game_handle)
+    }
+
+    fn add_coin(&self) {
+        keybd_input(self.coin_key)
+    }
+
+    fn test(&self) {
+        keybd_input(self.test_key)
+    }
+
+    fn service(&self) {
+        keybd_input(self.service_key)
     }
 }
