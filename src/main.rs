@@ -187,7 +187,7 @@ fn main() {
                         !todo!("implement keypad input");
                     }
                     _ => {
-                        eprintln!("Incorrect Command, Discarding.");
+                        eprintln!("Incorrect Command ({packet_type}), Discarding.");
                         continue;
                     }
                 }

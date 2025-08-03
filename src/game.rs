@@ -3,8 +3,8 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
-use std::{env, thread};
 use std::time::Duration;
+use std::{env, thread};
 
 use winapi::shared::minwindef::MAX_PATH;
 use winapi::um::minwinbase::STILL_ACTIVE;
@@ -57,45 +57,48 @@ fn get_exe_directory(process_handle: HANDLE) -> Option<PathBuf> {
 
 // SendInput wrapper
 fn keybd_input(key: i32) {
-    // this whole block looks really ugly, I blame microsoft.
-    unsafe {
-        let mut input_down = INPUT {
-            type_: INPUT_KEYBOARD,
-            u: {
-                let mut u = std::mem::zeroed::<INPUT_u>();
-                *u.ki_mut() = KEYBDINPUT {
-                    wVk: key as u16,
-                    wScan: 0,
-                    dwFlags: 0,
-                    time: 0,
-                    dwExtraInfo: 0,
-                };
-                u
-            },
+    // each key press is a thread, what could possibly go wrong
+    thread::spawn(move || {
+        // this whole block looks really ugly, I blame microsoft.
+        unsafe {
+            let mut input_down = INPUT {
+                type_: INPUT_KEYBOARD,
+                u: {
+                    let mut u = std::mem::zeroed::<INPUT_u>();
+                    *u.ki_mut() = KEYBDINPUT {
+                        wVk: key as u16,
+                        wScan: 0,
+                        dwFlags: 0,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    };
+                    u
+                },
+            };
+
+            SendInput(1, &mut input_down, std::mem::size_of::<INPUT>() as i32);
+
+            // gutentight value of sleep before lifting the key
+            thread::sleep(Duration::from_millis(500));
+
+            let mut input_up = INPUT {
+                type_: INPUT_KEYBOARD,
+                u: {
+                    let mut u = std::mem::zeroed::<INPUT_u>();
+                    *u.ki_mut() = KEYBDINPUT {
+                        wVk: key as u16,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    };
+                    u
+                },
+            };
+
+            SendInput(1, &mut input_up, std::mem::size_of::<INPUT>() as i32);
         };
-
-        SendInput(1, &mut input_down, std::mem::size_of::<INPUT>() as i32);
-
-        // gutentight value of sleep before lifting the key
-        thread::sleep(Duration::from_millis(1500));
-
-        let mut input_up = INPUT {
-            type_: INPUT_KEYBOARD,
-            u: {
-                let mut u = std::mem::zeroed::<INPUT_u>();
-                *u.ki_mut() = KEYBDINPUT {
-                    wVk: key as u16,
-                    wScan: 0,
-                    dwFlags: KEYEVENTF_KEYUP,
-                    time: 0,
-                    dwExtraInfo: 0,
-                };
-                u
-            },
-        };
-
-        SendInput(1, &mut input_up, std::mem::size_of::<INPUT>() as i32);
-    };
+    });
 }
 
 pub trait GameInstance {
@@ -226,8 +229,8 @@ impl SegaToolsInstance {
 
 impl GameInstance for SegaToolsInstance {
     fn login(&self, idm: &str) {
-        let mut access_code= get_008_accesscode(idm);
-        
+        let mut access_code = get_008_accesscode(idm);
+
         // try to get the more canonically correct acccesscode, if requested.
         // OPINION: i don't think you should use this
         // because all the other card readers and data providers do it wrong anyway
