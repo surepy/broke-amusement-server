@@ -192,7 +192,7 @@ impl SpiceGameInstance {
 
         // figure out what game we're running
         // TODO props/ea3-config.xml
-        directory.push("ea3-config.xml");
+        directory.push("props/ea3-config.xml");
 
         let ea3_config_str = fs::read_to_string(&directory).unwrap();
         let game_type  = SpiceGameType::from(

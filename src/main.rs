@@ -97,8 +97,6 @@ fn dumb_function_tests() {
 
     let _accesscode = card::get_008_accesscode(card_idm_str);
     let _card_id_hex = format!("{:016X}", card_idm);
-
-    SpiceGameInstance::new(std::ptr::null_mut());
 }
 
 enum PacketType {
