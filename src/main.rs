@@ -95,20 +95,19 @@ fn dumb_function_tests() {
     let card_idm_str = "3500bd2ae3724e58";
     let card_idm = i64::from_str_radix(card_idm_str, 16).unwrap_or(0);
 
-    let accesscode = card::get_008_accesscode(card_idm_str);
-    let card_id_hex = format!("{:016X}", card_idm);
+    let _accesscode = card::get_008_accesscode(card_idm_str);
+    let _card_id_hex = format!("{:016X}", card_idm);
 
-    println!("0008 access code: {accesscode}");
-    println!("hex: {card_id_hex}");
+    SpiceGameInstance::new(std::ptr::null_mut());
 }
 
 enum PacketType {
-    None,   // bad data
+    None, // bad data
     CardScan,
     CoinInput,
     TestButton,
     ServiceButton,
-    KeypadInput
+    KeypadInput,
 }
 
 impl From<u8> for PacketType {
@@ -125,7 +124,7 @@ impl From<u8> for PacketType {
 }
 
 fn main() {
-    // dumb_function_tests();
+    dumb_function_tests();
 
     println!("Waiting for game to launch...");
 
@@ -183,7 +182,7 @@ fn main() {
                     PacketType::ServiceButton => {
                         handle.service();
                     }
-                    PacketType::KeypadInput  => {
+                    PacketType::KeypadInput => {
                         !todo!("implement keypad input");
                     }
                     _ => {

@@ -12,8 +12,11 @@ use winapi::um::processthreadsapi::GetExitCodeProcess;
 use winapi::um::psapi::GetModuleFileNameExW;
 use winapi::um::winnt::HANDLE;
 use winapi::um::winuser::{
-    INPUT, INPUT_KEYBOARD, INPUT_u, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VK_RETURN,
+    INPUT_u, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_F1, VK_F2, VK_F3, VK_RETURN, VK_SPACE
 };
+
+use quick_xml::Reader as XMLReader;
+use quick_xml::events::Event as XMLEvent;
 
 use crate::card::{get_008_accesscode, get_aimedb_accesscode};
 
@@ -110,51 +113,148 @@ pub trait GameInstance {
 }
 
 // spice
+enum SpiceGameType {
+    None, // lol
+    SoundVortex,
+}
+
 pub struct SpiceGameInstance {
     game_handle: HANDLE,
     card_file: PathBuf,
     // unimplemented
-    coin_key: i32,
+    game_type: SpiceGameType,
+}
+
+impl From<&str> for SpiceGameType {
+    fn from(value: &str) -> Self {
+        match value {
+            "KFC" => SpiceGameType::SoundVortex,
+            _ => SpiceGameType::None, // default case
+        }
+    }
+}
+
+fn spice_config_game_name(value: &SpiceGameType) -> &str {
+    match value {
+        SpiceGameType::SoundVortex => &"Sound Voltex",
+        _ => "",
+    }
+}
+/// finds a key in str
+/// assumes the end is a str
+fn xml_config_entry_str(content: &str, key: &str) -> String {
+    let mut config_reader = XMLReader::from_str(&content);
+    config_reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut current_path = Vec::new();
+
+    loop {
+        match config_reader.read_event_into(&mut buf) {
+            Err(e) => panic!(
+                "Error at position {}: {:?}",
+                config_reader.error_position(),
+                e
+            ),
+            Ok(XMLEvent::Eof) => break,
+            Ok(XMLEvent::Start(e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).into_owned();
+                current_path.push(name);
+            },
+            Ok(XMLEvent::End(_)) => { current_path.pop(); },
+            Ok(XMLEvent::Text(e)) => {
+                let path = current_path.join(".");
+                if path == key {
+                    return e.decode().unwrap().into_owned();
+                }
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    // return "" if not found
+    String::new()
 }
 
 impl SpiceGameInstance {
     pub fn new(hnd: HANDLE) -> SpiceGameInstance {
+        // TODO replace with get_exe_directory(hnd).unwrap();
+        let mut directory = get_exe_directory(hnd).unwrap();
+
+        println!("using {} as exeDir", directory.display());
+
+        // spice games... some games have more than 1 card reader (see: IIDX)
+        //  but this is only "one reader" and i dont really think this app is for 2p play
+        //  ... and the people that want 2p play probably have an actual cab so WONTFIX
+        let mut card_file = directory.clone();
+        card_file.push("card0.txt");
+
+        // figure out what game we're running
+        // TODO props/ea3-config.xml
+        directory.push("ea3-config.xml");
+
+        let ea3_config_str = fs::read_to_string(&directory).unwrap();
+        let game_type  = SpiceGameType::from(
+            xml_config_entry_str(&ea3_config_str, "ea3.soft.model").as_str()
+        );
+
+        println!("Detected Game {}",  spice_config_game_name(&game_type));
+
         SpiceGameInstance {
             game_handle: hnd,
-            card_file: todo!(),
-            coin_key: todo!(),
+            card_file,
+            game_type,
         }
     }
 }
 
 impl GameInstance for SpiceGameInstance {
+    // FIXME: because in spice you can actually *remap the buttons*
+    // we are stuck with a situation where where we probably have to 
+    // read the spicetools config every time we press a button
+    // this really sucks and i don't wanna deal with it
+    // so we have "best guess defaults"
+    // INFO: if key=255 it means unbinded
+
+    // later: 
+    // let spice_config_file = Path::new(&env::var("APPDATA").unwrap()).join("spicetools.xml");
+
     fn login(&self, idm: &str) {
-        // SpiceGameInstance-specific login implementation
         // plans:
         // 1. find card0.txt
         // 2. write idm to card0.txt
         // 3. dynamically press the "scan card" button
         // 4. profit!!!!!!
-        // plan b(etter):
+        // TODO plan b(etter):
         // 1. virtual hid driver
         // 2. hid driver sends card scan event
-        !todo!()
+
+        // for spice we can just dump the idm and it works
+        let write_op = fs::write(&self.card_file, idm);
+
+        if write_op.is_err() {
+            eprintln!("failed to write card information.");
+            return;
+        }
+
+        keybd_input(VK_SPACE);
     }
 
     fn game_running(&self) -> bool {
         is_process_running(&self.game_handle)
     }
 
-    fn add_coin(&self) {
-        todo!()
-    }
-
     fn test(&self) {
-        todo!()
+        keybd_input(VK_F1)
     }
 
     fn service(&self) {
-        todo!()
+        keybd_input(VK_F2)
+    }
+    
+    fn add_coin(&self) {
+        keybd_input(VK_F3)
     }
 }
 
