@@ -10,7 +10,8 @@ use winapi::um::processthreadsapi::OpenProcess;
 use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
-use winapi::um::winnt::PROCESS_QUERY_INFORMATION;
+use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION};
+
 
 mod game;
 use crate::game::{GameInstance, SegaToolsInstance, SpiceGameInstance};
@@ -22,8 +23,11 @@ fn create_game_instance(
 ) -> Option<Box<dyn GameInstance>> {
     match process_name {
         "spice.exe" | "spice64.exe" => {
-            let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
+            // spice runs as administrator, so we have to use PROCESS_QUERY_LIMITED_INFORMATION
+            let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID) };
             if handle.is_null() {
+                let error = get_last_error::Win32Error::get_last_error();
+                println!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
                 return None;
             }
             Some(Box::new(SpiceGameInstance::new(handle)))
@@ -33,6 +37,8 @@ fn create_game_instance(
         "amdaemon.exe" => {
             let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
             if handle.is_null() {
+                let error = get_last_error::Win32Error::get_last_error();
+                println!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
                 return None;
             }
             Some(Box::new(SegaToolsInstance::new(handle)))

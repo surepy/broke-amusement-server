@@ -61,6 +61,7 @@ fn get_exe_directory(process_handle: HANDLE) -> Option<PathBuf> {
 // SendInput wrapper
 fn keybd_input(key: i32) {
     // each key press is a thread, what could possibly go wrong
+    // FIXME: put this into a thread queue, low priority.
     thread::spawn(move || {
         // this whole block looks really ugly, I blame microsoft.
         unsafe {
@@ -182,7 +183,7 @@ impl SpiceGameInstance {
         // TODO replace with get_exe_directory(hnd).unwrap();
         let mut directory = get_exe_directory(hnd).unwrap();
 
-        println!("using {} as exeDir", directory.display());
+        println!("Using {} as exeDir", directory.display());
 
         // spice games... some games have more than 1 card reader (see: IIDX)
         //  but this is only "one reader" and i dont really think this app is for 2p play
@@ -190,16 +191,17 @@ impl SpiceGameInstance {
         let mut card_file = directory.clone();
         card_file.push("card0.txt");
 
+        println!("Using {} as card0.txt", card_file.display());
+
         // figure out what game we're running
-        // TODO props/ea3-config.xml
-        directory.push("props/ea3-config.xml");
+        directory.push("prop/ea3-config.xml");
 
         let ea3_config_str = fs::read_to_string(&directory).unwrap();
         let game_type  = SpiceGameType::from(
             xml_config_entry_str(&ea3_config_str, "ea3.soft.model").as_str()
         );
 
-        println!("Detected Game {}",  spice_config_game_name(&game_type));
+        println!("Detected Game={}",  spice_config_game_name(&game_type));
 
         SpiceGameInstance {
             game_handle: hnd,

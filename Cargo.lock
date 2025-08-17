@@ -54,6 +54,7 @@ checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 name = "broke-amusement-server"
 version = "0.1.0"
 dependencies = [
+ "get-last-error",
  "quick-xml",
  "reqwest",
  "serde_json",
@@ -223,6 +224,15 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
+]
+
+[[package]]
+name = "get-last-error"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce85cdf2afb6a63ee6eb6ae445afb5772b1e47b009e1433750bd5d33bd30bb2c"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
