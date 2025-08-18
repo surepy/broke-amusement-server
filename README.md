@@ -8,8 +8,16 @@ fear not, this project is for you.
 
 # Compatibility / Features
 
-- [ ] Spice
-  - [ ] keypad
-  - [ ] 2-player (unplanned)
-- [x] S*ga
+- [x] Spice
+  - [x] KFC 
+  - [ ] LDJ (No Keypad, 1P only)
+  - [ ] MDX (1P only)
+  - [ ] M39
+  - [ ] L44
+  - [ ] PAN
+- [x] S*ga (should all work, but untested)
+  - [ ] SDDT
+  - [x] SDHD
+  - [ ] SDGA
+  - [ ] SDFE
 

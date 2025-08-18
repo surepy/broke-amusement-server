@@ -1,7 +1,7 @@
 // this file largely exists to handle sega games, because
 // for spice i just plug in the idm to card0.txt
 
-use std::{collections::HashMap, env, fs, io::{Read, Write}, path::Path, str::FromStr};
+use std::{collections::HashMap, env, fs, io::{Read, Write}, path::Path};
 use serde_json;
 
 /// 

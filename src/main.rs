@@ -1,4 +1,3 @@
-use std::ffi::CStr;
 use std::ffi::OsString;
 use std::io::Read;
 use std::net::TcpListener;
@@ -27,7 +26,7 @@ fn create_game_instance(
             let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID) };
             if handle.is_null() {
                 let error = get_last_error::Win32Error::get_last_error();
-                println!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
+                eprintln!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
                 return None;
             }
             Some(Box::new(SpiceGameInstance::new(handle)))
@@ -38,7 +37,7 @@ fn create_game_instance(
             let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
             if handle.is_null() {
                 let error = get_last_error::Win32Error::get_last_error();
-                println!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
+                eprintln!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
                 return None;
             }
             Some(Box::new(SegaToolsInstance::new(handle)))
@@ -172,7 +171,7 @@ fn main() {
 
                         let client_ip = stream.peer_addr().unwrap();
                         println!("Card Data Recieved from {client_ip}");
-                        // TODO: delete this log probably.
+                        // TODO: delete this log probably?
                         println!("Logging in with {card_idm}");
 
                         handle.login(&card_idm);
@@ -187,7 +186,7 @@ fn main() {
                         handle.service();
                     }
                     PacketType::KeypadInput => {
-                        !todo!("implement keypad input");
+                        handle.misc_keys(data[0].into());
                     }
                     _ => {
                         eprintln!("Incorrect Command ({packet_type}), Discarding.");
