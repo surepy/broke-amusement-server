@@ -4,17 +4,45 @@ use std::net::TcpListener;
 use std::os::windows::ffi::OsStringExt;
 use std::thread;
 use std::time::Duration;
+use winapi::shared::ntdef::HANDLE;
 use winapi::um::handleapi::CloseHandle;
-use winapi::um::processthreadsapi::OpenProcess;
+use winapi::um::processthreadsapi::GetCurrentProcess;
+use winapi::um::processthreadsapi::{OpenProcess, OpenProcessToken};
+use winapi::um::securitybaseapi::GetTokenInformation;
 use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
-use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION};
-
+use winapi::um::winnt::{
+    PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, TOKEN_ELEVATION, TOKEN_QUERY,
+    TokenElevation,
+};
 
 mod game;
 use crate::game::{GameInstance, SegaToolsInstance, SpiceGameInstance};
 mod card;
+
+fn is_current_process_elevated() -> bool {
+    unsafe {
+        let mut token: HANDLE = std::ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
+            return false;
+        }
+
+        let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
+        let mut size = 0;
+
+        let success = GetTokenInformation(
+            token,
+            TokenElevation,
+            &mut elevation as *mut _ as *mut _,
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut size,
+        );
+
+        CloseHandle(token);
+        success != 0 && elevation.TokenIsElevated != 0
+    }
+}
 
 fn create_game_instance(
     process_name: &str,
@@ -23,11 +51,22 @@ fn create_game_instance(
     match process_name {
         "spice.exe" | "spice64.exe" => {
             // spice runs as administrator, so we have to use PROCESS_QUERY_LIMITED_INFORMATION
-            let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID) };
+            let handle =
+                unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID) };
             if handle.is_null() {
                 let error = get_last_error::Win32Error::get_last_error();
-                eprintln!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
+                eprintln!(
+                    "Failed Getting Handle: {} (PID {})",
+                    error, entry.th32ProcessID
+                );
                 return None;
+            }
+            if !is_current_process_elevated() {
+                 eprintln!(
+                    "WARNING: Insufficient Privileges\n
+                    Spice runs as Administrator so ALL input functions will be ignored. 
+                    please re-launch this application as Administrator"
+                );
             }
             Some(Box::new(SpiceGameInstance::new(handle)))
         }
@@ -37,7 +76,10 @@ fn create_game_instance(
             let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, entry.th32ProcessID) };
             if handle.is_null() {
                 let error = get_last_error::Win32Error::get_last_error();
-                eprintln!("Failed Getting Handle: {} (PID {})", error, entry.th32ProcessID);
+                eprintln!(
+                    "Failed Getting Handle: {} (PID {})",
+                    error, entry.th32ProcessID
+                );
                 return None;
             }
             Some(Box::new(SegaToolsInstance::new(handle)))

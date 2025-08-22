@@ -261,7 +261,7 @@ impl SpiceGameInstance {
         let mut p1_keypad_9: i32 = 0x69;
         let mut p1_keypad_00: i32 = 0xD;
         let mut p1_keypad_decimal: i32 = 0x6E;
-        let mut p1_keypad_insert_card: i32 = 0x6E;
+        let mut p1_keypad_insert_card: i32 = 0x6B;
 
         // these don't really have a defualt, but are good defaults (in my opinion)
         let mut test_key = 0x31;
