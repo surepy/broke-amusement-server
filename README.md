@@ -15,9 +15,9 @@ fear not, this project is for you.
   - [ ] M39
   - [ ] L44
   - [ ] PAN
-- [x] S*ga (should all work, but untested)
+- [x] S*ga
   - [ ] SDDT
-  - [x] SDHD
+  - [x] SDHD (Tested)
   - [ ] SDGA
   - [ ] SDFE
 

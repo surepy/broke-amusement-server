@@ -152,8 +152,9 @@ fn main() {
                 let mut buffer = [0u8; 17];
 
                 // our data *always should be* 9 bytes, discard every other data.
-                if stream.read(&mut buffer).unwrap_or(usize::MAX) != 17 {
-                    eprintln!("Discarding Possibly Malformed Data (length != 17)");
+                let read_len = stream.read(&mut buffer).unwrap_or(usize::MAX);
+                if read_len != 9 {
+                    eprintln!("Discarding Possibly Malformed Data (length {read_len} != 9)");
                     continue;
                 }
 
